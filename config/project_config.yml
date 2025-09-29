@@ -1,0 +1,125 @@
+---
+# NGS Pipeline Configuration
+# Flexible comparison specification for multi-condition experiments
+
+project:
+  name: "project1"
+  description: "Example NGS project with multiple treatments and controls"
+  author: "srhartono@ucdavis.edu"
+  date: "2025-09-29"
+
+# Data organization
+paths:
+  data_dir: "data/project1"
+  results_dir: "results/project1"
+  notebooks_dir: "notebooks/project1"
+  references_dir: "references"
+
+# Sample information
+samples:
+  treatments:
+    - "Treat1"
+    - "Treat2"
+  controls:
+    - "Control1"
+    - "Control2"
+  batches:
+    - "batch1"
+    - "batch2"
+  replicates: [1, 2]
+  
+# Assay types supported
+assays:
+  - "rnaseq"     # RNA sequencing
+  - "euseq"      # EU-seq (nascent RNA)
+  - "sdripseq"   # sDRIP-seq (RNA-DNA hybrids)
+  - "endseq"     # ENDseq (5' end mapping)
+
+# Comparison specifications
+# Define which conditions to compare in differential analysis
+comparisons:
+  # Primary treatment vs control comparisons
+  primary:
+    - name: "Treat1_vs_Control1"
+      case: "Treat1"
+      control: "Control1"
+      description: "Treatment 1 vs Control 1 (all batches combined)"
+      batch_effect: "include"  # include, exclude, or batch_specific
+      
+    - name: "Treat2_vs_Control2"
+      case: "Treat2"
+      control: "Control2"
+      description: "Treatment 2 vs Control 2 (all batches combined)"
+      batch_effect: "include"
+      
+  # Batch-specific comparisons
+  batch_specific:
+    - name: "Treat1_vs_Control1_batch1"
+      case: "Treat1"
+      control: "Control1"
+      batch: "batch1"
+      description: "Treatment 1 vs Control 1 in batch 1 only"
+      
+    - name: "Treat1_vs_Control1_batch2"
+      case: "Treat1"
+      control: "Control1"
+      batch: "batch2"
+      description: "Treatment 1 vs Control 1 in batch 2 only"
+      
+    - name: "AllTreat_batch1_vs_AllControl_batch1"
+      case: ["Treat1", "Treat2"]
+      control: ["Control1", "Control2"]
+      batch: "batch1"
+      description: "All treatments vs all controls in batch 1"
+      
+    - name: "AllTreat_batch2_vs_AllControl_batch2"
+      case: ["Treat1", "Treat2"]
+      control: ["Control1", "Control2"]
+      batch: "batch2"
+      description: "All treatments vs all controls in batch 2"
+      
+  # Cross-treatment comparisons
+  cross_treatment:
+    - name: "Treat1_vs_Treat2"
+      case: "Treat1"
+      control: "Treat2"
+      description: "Treatment 1 vs Treatment 2 comparison"
+      batch_effect: "include"
+      
+  # Cross-control comparisons
+  cross_control:
+    - name: "Control1_vs_Control2"
+      case: "Control1"
+      control: "Control2"
+      description: "Control 1 vs Control 2 comparison"
+      batch_effect: "include"
+
+# Analysis parameters
+analysis:
+  differential_expression:
+    method: "DESeq2"
+    padj_threshold: 0.05
+    lfc_threshold: 1.0
+    
+  peak_calling:
+    method: "MACS2"
+    qvalue_threshold: 0.05
+    
+  quality_control:
+    min_reads: 1000000
+    max_duplication_rate: 0.5
+    min_mapping_rate: 0.7
+    
+# Resource allocation
+resources:
+  cpu_cores: 8
+  memory_gb: 32
+  disk_space_gb: 500
+
+# Output preferences
+output:
+  generate_html_report: true
+  create_browser_tracks: true
+  export_expression_matrices: true
+  generate_heatmaps: true
+  create_volcano_plots: true

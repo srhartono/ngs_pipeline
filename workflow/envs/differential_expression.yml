@@ -1,0 +1,13 @@
+name: differential_expression
+channels:
+  - bioconda
+  - conda-forge
+  - r
+  - defaults
+dependencies:
+  - r-base=4.3
+  - bioconductor-deseq2=1.40
+  - bioconductor-enhancedvolcano=1.18
+  - r-ggplot2=3.4
+  - r-pheatmap=1.0
+  - r-dplyr=1.1

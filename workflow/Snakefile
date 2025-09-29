@@ -1,0 +1,294 @@
+# NGS Pipeline - Snakemake Workflow
+# Comprehensive analysis of RNA-seq, EU-seq, sDRIP-seq, and ENDseq data
+# Parallel implementation to Nextflow with identical functionality
+
+import os
+import pandas as pd
+from pathlib import Path
+
+# Configuration
+configfile: "config/project_config.yml"
+
+# Global variables
+PROJECT = config["project"]["name"]
+DATA_DIR = config["paths"]["data_dir"]
+RESULTS_DIR = config["paths"]["results_dir"]
+REF_DIR = config["paths"]["references_dir"]
+
+# Parse sample information
+TREATMENTS = config["samples"]["treatments"]
+CONTROLS = config["samples"]["controls"]
+BATCHES = config["samples"]["batches"]
+REPLICATES = config["samples"]["replicates"]
+ASSAYS = config["assays"]
+
+# Generate all sample combinations
+def get_all_samples():
+    samples = []
+    for condition in TREATMENTS + CONTROLS:
+        for batch in BATCHES:
+            for rep in REPLICATES:
+                for assay in ASSAYS:
+                    sample_id = f"{condition}_{batch}_rep{rep}_{assay}"
+                    samples.append(sample_id)
+    return samples
+
+SAMPLES = get_all_samples()
+
+# Helper functions
+def get_sample_condition(sample):
+    return sample.split('_')[0]
+
+def get_sample_batch(sample):
+    return sample.split('_')[1]
+
+def get_sample_replicate(sample):
+    return sample.split('_')[2].replace('rep', '')
+
+def get_sample_assay(sample):
+    return sample.split('_')[3]
+
+def get_samples_by_assay(assay):
+    return [s for s in SAMPLES if get_sample_assay(s) == assay]
+
+def get_samples_by_condition(condition):
+    return [s for s in SAMPLES if get_sample_condition(s) == condition]
+
+# Final output targets
+rule all:
+    input:
+        # Quality control reports
+        f"{RESULTS_DIR}/qc/multiqc_report.html",
+        
+        # Mapping results
+        expand(f"{RESULTS_DIR}/mapping/{{sample}}/{{sample}}_Aligned.sortedByCoord.out.bam", sample=SAMPLES),
+        
+        # Peak calling results
+        expand(f"{RESULTS_DIR}/peaks/{{sample}}/{{sample}}_peaks.narrowPeak", 
+               sample=[s for s in SAMPLES if get_sample_assay(s) in ['sdripseq', 'endseq']]),
+        
+        # Differential expression results
+        expand(f"{RESULTS_DIR}/differential_expression/{{comparison}}/results.tsv",
+               comparison=[comp["name"] for comp in config["comparisons"]["primary"]]),
+        
+        # Final report
+        f"{RESULTS_DIR}/final_report.html"
+
+# =============================================================================
+# Quality Control Rules
+# =============================================================================
+
+rule fastqc:
+    input:
+        fastq = f"{DATA_DIR}/{{sample}}.fastq.gz"
+    output:
+        html = f"{RESULTS_DIR}/qc/fastqc/{{sample}}_fastqc.html",
+        zip = f"{RESULTS_DIR}/qc/fastqc/{{sample}}_fastqc.zip"
+    params:
+        outdir = f"{RESULTS_DIR}/qc/fastqc"
+    threads: 2
+    conda: "envs/qc.yml"
+    shell:
+        """
+        fastqc -t {threads} -o {params.outdir} {input.fastq}
+        """
+
+rule multiqc:
+    input:
+        expand(f"{RESULTS_DIR}/qc/fastqc/{{sample}}_fastqc.zip", sample=SAMPLES)
+    output:
+        f"{RESULTS_DIR}/qc/multiqc_report.html"
+    params:
+        indir = f"{RESULTS_DIR}/qc",
+        outdir = f"{RESULTS_DIR}/qc"
+    conda: "envs/qc.yml"
+    shell:
+        """
+        multiqc {params.indir} -o {params.outdir}
+        """
+
+# =============================================================================
+# Read Trimming and Preprocessing
+# =============================================================================
+
+rule trim_galore:
+    input:
+        fastq = f"{DATA_DIR}/{{sample}}.fastq.gz"
+    output:
+        trimmed = f"{RESULTS_DIR}/trimmed/{{sample}}_trimmed.fq.gz",
+        report = f"{RESULTS_DIR}/trimmed/{{sample}}.fastq.gz_trimming_report.txt"
+    params:
+        outdir = f"{RESULTS_DIR}/trimmed",
+        extra = "--quality 20 --length 30"
+    threads: 4
+    conda: "envs/trimming.yml"
+    shell:
+        """
+        trim_galore {params.extra} --cores {threads} -o {params.outdir} {input.fastq}
+        mv {params.outdir}/{wildcards.sample}.fastq.gz_trimmed.fq.gz {output.trimmed}
+        """
+
+# =============================================================================
+# Read Alignment
+# =============================================================================
+
+rule star_align:
+    input:
+        fastq = f"{RESULTS_DIR}/trimmed/{{sample}}_trimmed.fq.gz",
+        index = f"{REF_DIR}/star_index/SAindex"
+    output:
+        bam = f"{RESULTS_DIR}/mapping/{{sample}}/{{sample}}_Aligned.sortedByCoord.out.bam",
+        log = f"{RESULTS_DIR}/mapping/{{sample}}/{{sample}}_Log.final.out"
+    params:
+        index_dir = f"{REF_DIR}/star_index",
+        outdir = f"{RESULTS_DIR}/mapping/{{sample}}",
+        prefix = f"{RESULTS_DIR}/mapping/{{sample}}/{{sample}}_"
+    threads: 8
+    conda: "envs/alignment.yml"
+    shell:
+        """
+        STAR --runThreadN {threads} \\
+             --genomeDir {params.index_dir} \\
+             --readFilesIn {input.fastq} \\
+             --readFilesCommand zcat \\
+             --outFileNamePrefix {params.prefix} \\
+             --outSAMtype BAM SortedByCoordinate \\
+             --outSAMstrandField intronMotif \\
+             --outFilterIntronMotifs RemoveNoncanonical
+        """
+
+rule index_bam:
+    input:
+        bam = f"{RESULTS_DIR}/mapping/{{sample}}/{{sample}}_Aligned.sortedByCoord.out.bam"
+    output:
+        bai = f"{RESULTS_DIR}/mapping/{{sample}}/{{sample}}_Aligned.sortedByCoord.out.bam.bai"
+    conda: "envs/alignment.yml"
+    shell:
+        """
+        samtools index {input.bam}
+        """
+
+# =============================================================================
+# Peak Calling (for sDRIP-seq and ENDseq)
+# =============================================================================
+
+rule macs2_callpeak:
+    input:
+        bam = f"{RESULTS_DIR}/mapping/{{sample}}/{{sample}}_Aligned.sortedByCoord.out.bam",
+        bai = f"{RESULTS_DIR}/mapping/{{sample}}/{{sample}}_Aligned.sortedByCoord.out.bam.bai"
+    output:
+        peaks = f"{RESULTS_DIR}/peaks/{{sample}}/{{sample}}_peaks.narrowPeak",
+        summits = f"{RESULTS_DIR}/peaks/{{sample}}/{{sample}}_summits.bed"
+    params:
+        name = "{sample}",
+        outdir = f"{RESULTS_DIR}/peaks/{{sample}}",
+        format = "BAM",
+        gsize = "hs",  # Human genome size
+        qvalue = 0.05
+    conda: "envs/peakcalling.yml"
+    shell:
+        """
+        macs2 callpeak -t {input.bam} \\
+                       -f {params.format} \\
+                       -g {params.gsize} \\
+                       -n {params.name} \\
+                       --outdir {params.outdir} \\
+                       -q {params.qvalue} \\
+                       --keep-dup all
+        """
+
+# =============================================================================
+# Gene Quantification
+# =============================================================================
+
+rule featurecounts:
+    input:
+        bam = f"{RESULTS_DIR}/mapping/{{sample}}/{{sample}}_Aligned.sortedByCoord.out.bam",
+        gtf = f"{REF_DIR}/annotation.gtf"
+    output:
+        counts = f"{RESULTS_DIR}/quantification/{{sample}}/{{sample}}_counts.txt"
+    params:
+        outdir = f"{RESULTS_DIR}/quantification/{{sample}}"
+    threads: 4
+    conda: "envs/quantification.yml"
+    shell:
+        """
+        mkdir -p {params.outdir}
+        featureCounts -T {threads} \\
+                     -a {input.gtf} \\
+                     -o {output.counts} \\
+                     -s 0 \\
+                     {input.bam}
+        """
+
+# =============================================================================
+# Differential Expression Analysis
+# =============================================================================
+
+rule create_count_matrix:
+    input:
+        counts = expand(f"{RESULTS_DIR}/quantification/{{sample}}/{{sample}}_counts.txt",
+                       sample=[s for s in SAMPLES if get_sample_assay(s) == 'rnaseq'])
+    output:
+        matrix = f"{RESULTS_DIR}/quantification/count_matrix.tsv",
+        metadata = f"{RESULTS_DIR}/quantification/sample_metadata.tsv"
+    script:
+        "scripts/create_count_matrix.py"
+
+rule differential_expression:
+    input:
+        counts = f"{RESULTS_DIR}/quantification/count_matrix.tsv",
+        metadata = f"{RESULTS_DIR}/quantification/sample_metadata.tsv"
+    output:
+        results = f"{RESULTS_DIR}/differential_expression/{{comparison}}/results.tsv",
+        plots = f"{RESULTS_DIR}/differential_expression/{{comparison}}/plots.pdf"
+    params:
+        comparison = "{comparison}",
+        outdir = f"{RESULTS_DIR}/differential_expression/{{comparison}}"
+    conda: "envs/differential_expression.yml"
+    script:
+        "scripts/differential_expression.R"
+
+# =============================================================================
+# Reporting
+# =============================================================================
+
+rule generate_final_report:
+    input:
+        qc_report = f"{RESULTS_DIR}/qc/multiqc_report.html",
+        de_results = expand(f"{RESULTS_DIR}/differential_expression/{{comparison}}/results.tsv",
+                           comparison=[comp["name"] for comp in config["comparisons"]["primary"]]),
+        peak_files = expand(f"{RESULTS_DIR}/peaks/{{sample}}/{{sample}}_peaks.narrowPeak", 
+                           sample=[s for s in SAMPLES if get_sample_assay(s) in ['sdripseq', 'endseq']])
+    output:
+        report = f"{RESULTS_DIR}/final_report.html"
+    params:
+        project_name = PROJECT,
+        results_dir = RESULTS_DIR
+    conda: "envs/reporting.yml"
+    script:
+        "scripts/generate_report.py"
+
+# =============================================================================
+# Reference Genome Preparation
+# =============================================================================
+
+rule build_star_index:
+    input:
+        fasta = f"{REF_DIR}/genome.fa",
+        gtf = f"{REF_DIR}/annotation.gtf"
+    output:
+        index = f"{REF_DIR}/star_index/SAindex"
+    params:
+        outdir = f"{REF_DIR}/star_index"
+    threads: 8
+    conda: "envs/alignment.yml"
+    shell:
+        """
+        STAR --runMode genomeGenerate \\
+             --runThreadN {threads} \\
+             --genomeDir {params.outdir} \\
+             --genomeFastaFiles {input.fasta} \\
+             --sjdbGTFfile {input.gtf} \\
+             --sjdbOverhang 99
+        """

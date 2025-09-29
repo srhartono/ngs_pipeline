@@ -1,0 +1,18 @@
+{
+  "skip_multiqc": false,
+  "skip_deseq2": false,
+  "trimgalore_args": "--length 50 --quality 25",
+  "star_index": "references/hs1/indices/star",
+  "bowtie2_index": "references/hs1/indices/bowtie2/hs1",
+  "bismark_index": "references/hs1/indices/bismark",
+  "genome_fasta": "references/hs1/hs1.fasta",
+  "genome_gtf": "references/hs1/hs1.gtf",
+  "macs2_genome_size": "hs",
+  "macs2_pvalue": "1e-3",
+  "deseq2_fdr": 0.1,
+  "deseq2_lfc_threshold": 0.5,
+  "max_cpus": 4,
+  "max_memory": "8.GB",
+  "max_time": "2.h",
+  "publish_dir_mode": "symlink"
+}

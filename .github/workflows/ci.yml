@@ -1,0 +1,190 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9, 3.10, 3.11]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y wget curl gzip
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-cov typer rich pandas matplotlib seaborn jinja2
+        pip install -e .
+    
+    - name: Install Nextflow
+      run: |
+        wget -qO- https://get.nextflow.io | bash
+        sudo mv nextflow /usr/local/bin/
+        nextflow info
+    
+    - name: Run Python tests
+      run: |
+        pytest test/ -v --cov=xrn2_multiomics --cov-report=xml
+    
+    - name: Test data generation
+      run: |
+        python test/generate_test_data.py --output-dir test_data --num-reads 1000
+        ls -la test_data/
+    
+    - name: Test Nextflow pipeline (dry run)
+      run: |
+        nextflow run main.nf --input test_data/samplesheet.tsv --outdir results -profile test -dry-run
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+    
+    - name: Install linting dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install black flake8 isort mypy
+    
+    - name: Run black
+      run: black --check --diff xrn2_multiomics/ test/
+    
+    - name: Run flake8
+      run: flake8 xrn2_multiomics/ test/
+    
+    - name: Run isort
+      run: isort --check-only --diff xrn2_multiomics/ test/
+    
+    - name: Run mypy
+      run: mypy xrn2_multiomics/ --ignore-missing-imports
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build Docker image
+      run: |
+        docker build -t xrn2-multiomics:test .
+    
+    - name: Test Docker image
+      run: |
+        docker run --rm xrn2-multiomics:test python --version
+        docker run --rm xrn2-multiomics:test nextflow info
+        docker run --rm xrn2-multiomics:test xrn2-multiomics --help
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+        # Install bioinformatics tools for integration test
+        wget -qO- https://get.nextflow.io | bash
+        sudo mv nextflow /usr/local/bin/
+    
+    - name: Generate test data
+      run: |
+        python test/generate_test_data.py --output-dir integration_test --num-reads 5000
+    
+    - name: Run integration test
+      run: |
+        # Run a minimal pipeline test with small dataset
+        nextflow run main.nf \
+          --input integration_test/samplesheet.tsv \
+          --outdir integration_results \
+          --skip_multiqc \
+          --skip_deseq2 \
+          --max_cpus 2 \
+          --max_memory 4.GB \
+          --max_time 30.min \
+          -profile test
+    
+    - name: Check outputs
+      run: |
+        ls -la integration_results/
+        # Basic output validation
+        [ -d "integration_results/fastqc" ] || exit 1
+        [ -d "integration_results/trimgalore" ] || exit 1
+        echo "Integration test completed successfully"
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [test, lint, docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Generate changelog
+      id: changelog
+      run: |
+        # Simple changelog generation
+        echo "## Changes in this release" > CHANGELOG.md
+        git log --oneline --since="1 week ago" >> CHANGELOG.md
+    
+    - name: Create Release
+      if: success()
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ github.run_number }}
+        release_name: Release v${{ github.run_number }}
+        body_path: CHANGELOG.md
+        draft: false
+        prerelease: false

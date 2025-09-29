@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ngs Analysis Report</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .header .subtitle {
+            font-size: 1.2em;
+            margin-top: 10px;
+            opacity: 0.9;
+        }
+        .section {
+            background: white;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .section h2 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        .section h3 {
+            color: #34495e;
+            margin-top: 25px;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .summary-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+            text-align: center;
+        }
+        .summary-card h4 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+        }
+        .summary-card .value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #3498db;
+        }
+        .assay-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .assay-tab {
+            padding: 10px 20px;
+            background: #ecf0f1;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .assay-tab:hover, .assay-tab.active {
+            background: #3498db;
+            color: white;
+        }
+        .assay-content {
+            display: none;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        .assay-content.active {
+            display: block;
+        }
+        .qc-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        .qc-table th, .qc-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .qc-table th {
+            background-color: #34495e;
+            color: white;
+        }
+        .qc-table tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        .qc-pass { color: #27ae60; font-weight: bold; }
+        .qc-warn { color: #f39c12; font-weight: bold; }
+        .qc-fail { color: #e74c3c; font-weight: bold; }
+        .plot-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .plot-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 5px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .file-list {
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .file-list h4 {
+            margin-top: 0;
+            color: #ecf0f1;
+        }
+        .file-list ul {
+            list-style: none;
+            padding: 0;
+        }
+        .file-list li {
+            padding: 5px 0;
+            border-bottom: 1px solid #34495e;
+        }
+        .file-list li:last-child {
+            border-bottom: none;
+        }
+        .file-list a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        .file-list a:hover {
+            color: #5dade2;
+        }
+        .alert {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .alert-info {
+            background-color: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            color: #0c5460;
+        }
+        .alert-warning {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            color: #856404;
+        }
+        .alert-success {
+            background-color: #d4edda;
+            border-left: 4px solid #28a745;
+            color: #155724;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #ecf0f1;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3498db, #2ecc71);
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+        .metadata-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 0.9em;
+        }
+        .metadata-table th {
+            background: #34495e;
+            color: white;
+            padding: 10px;
+            text-align: left;
+        }
+        .metadata-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        .metadata-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #7f8c8d;
+            border-top: 1px solid #bdc3c7;
+            margin-top: 40px;
+        }
+        .toggle-section {
+            cursor: pointer;
+            user-select: none;
+        }
+        .toggle-section:hover {
+            background-color: #f8f9fa;
+        }
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        .collapsible-content.expanded {
+            max-height: 1000px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>ngs Analysis Report</h1>
+        <div class="subtitle">
+            Comprehensive analysis across {{ analysis_data.assays|length }} assays
+            <br>
+            Generated: {{ analysis_data.timestamp }}
+        </div>
+    </div>
+
+    <!-- Executive Summary -->
+    <div class="section">
+        <h2>📊 Executive Summary</h2>
+        <div class="summary-grid">
+            <div class="summary-card">
+                <h4>Total Samples</h4>
+                <div class="value">{{ analysis_data.total_samples }}</div>
+            </div>
+            <div class="summary-card">
+                <h4>Assays Analyzed</h4>
+                <div class="value">{{ analysis_data.assays|length }}</div>
+            </div>
+            <div class="summary-card">
+                <h4>Total Reads</h4>
+                <div class="value">{{ (analysis_data.total_reads / 1000000)|round(1) }}M</div>
+            </div>
+            <div class="summary-card">
+                <h4>DE Genes Found</h4>
+                <div class="value">{{ analysis_data.de_genes_count }}</div>
+            </div>
+        </div>
+
+        {% if analysis_data.rescue_analysis %}
+        <div class="alert alert-info">
+            <strong>🧬 ngs Rescue Analysis:</strong> 
+            {{ analysis_data.rescue_analysis.rescued_genes }} genes showed rescue upon WT ngs expression, 
+            with {{ analysis_data.rescue_analysis.specific_targets }} ngs-specific targets identified.
+        </div>
+        {% endif %}
+
+        <!-- <div class="progress-bar"> -->
+            <!-- <div class="progress-fill" style="width: {{ analysis_data.pipeline_completion|default(0, true) }}%"></div> -->
+        <!-- </div> -->
+        <p><strong>Pipeline Completion:</strong> {{ analysis_data.pipeline_completion|default(0, true) }}%</p>
+    </div>
+
+    <!-- Quality Control Overview -->
+    <div class="section">
+        <h2>🔍 Quality Control Overview</h2>
+        
+        <div class="assay-tabs">
+            {% for assay in analysis_data.assays %}
+            <button class="assay-tab {% if loop.first %}active{% endif %}" onclick="showAssay('{{ assay.name }}')">
+                {{ assay.name }}
+            </button>
+            {% endfor %}
+        </div>
+
+        {% for assay in analysis_data.assays %}
+        <div id="{{ assay.name }}" class="assay-content {% if loop.first %}active{% endif %}">
+            <h3>{{ assay.display_name }} Quality Metrics</h3>
+            
+            <table class="qc-table">
+                <thead>
+                    <tr>
+                        <th>Sample ID</th>
+                        <th>Raw Reads</th>
+                        <th>Clean Reads</th>
+                        <th>Mapping Rate</th>
+                        <th>{% if assay.name == 'rnaseq' %}rRNA Content{% elif assay.name == 'euseq' %}EU+ Reads{% elif assay.name == 'sdripseq' %}Peak Count{% elif assay.name == 'bsseq' %}Conversion Rate{% elif assay.name == 'endseq' %}3' Coverage{% endif %}</th>
+                        <th>QC Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sample in assay.samples %}
+                    <tr>
+                        <td>{{ sample.id }}</td>
+                        <td>{{ (sample.raw_reads / 1000000)|round(1) }}M</td>
+                        <td>{{ (sample.clean_reads / 1000000)|round(1) }}M</td>
+                        <td>{{ sample.mapping_rate }}%</td>
+                        <td>
+                            {% if assay.name == 'rnaseq' %}{{ sample.rrna_content }}%
+                            {% elif assay.name == 'euseq' %}{{ (sample.eu_reads / 1000000)|round(1) }}M
+                            {% elif assay.name == 'sdripseq' %}{{ sample.peak_count }}
+                            {% elif assay.name == 'bsseq' %}{{ sample.conversion_rate }}%
+                            {% elif assay.name == 'endseq' %}{{ sample.three_prime_coverage }}%
+                            {% endif %}
+                        </td>
+                        <td class="qc-{{ sample.qc_status|lower }}">{{ sample.qc_status|upper }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            {% if assay.plots %}
+            <div class="plot-container">
+                {% for plot in assay.plots %}
+                <div>
+                    <h4>{{ plot.title }}</h4>
+                    <img src="{{ plot.path }}" alt="{{ plot.title }}">
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Differential Expression Results -->
+    {% if analysis_data.deseq2_results %}
+    <div class="section">
+        <h2>📈 Differential Expression Analysis</h2>
+        
+        <h3>Key Findings</h3>
+        <div class="summary-grid">
+            {% for contrast in analysis_data.deseq2_results.contrasts %}
+            <div class="summary-card">
+                <h4>{{ contrast.name }}</h4>
+                <div class="value">{{ contrast.de_count }}</div>
+                <small>DE genes ({{ contrast.up_count }} up, {{ contrast.down_count }} down)</small>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if analysis_data.deseq2_results.rescue_genes %}
+        <div class="alert alert-success">
+            <strong>🎯 Rescue Analysis Results:</strong>
+            <ul>
+                <li><strong>{{ analysis_data.deseq2_results.rescue_genes|length }} rescue genes</strong> identified</li>
+                <li>Top rescued pathways: {{ analysis_data.deseq2_results.top_pathways|join(', ') }}</li>
+                <li>ngs-specific targets show {{ analysis_data.deseq2_results.fold_change_range }} fold expression changes</li>
+            </ul>
+        </div>
+        {% endif %}
+
+        <div class="plot-container">
+            {% for plot in analysis_data.deseq2_results.plots %}
+            <div>
+                <h4>{{ plot.title }}</h4>
+                <img src="{{ plot.path }}" alt="{{ plot.title }}">
+                <p><em>{{ plot.description }}</em></p>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="toggle-section" onclick="toggleSection('de-genes-table')">
+            <h3>📋 Top Differentially Expressed Genes (Click to expand)</h3>
+        </div>
+        <div id="de-genes-table" class="collapsible-content">
+            <table class="qc-table">
+                <thead>
+                    <tr>
+                        <th>Gene Symbol</th>
+                        <th>Gene Name</th>
+                        <th>Log2FC</th>
+                        <th>Adj. P-value</th>
+                        <th>Biotype</th>
+                        <th>Rescue Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for gene in analysis_data.deseq2_results.top_genes %}
+                    <tr>
+                        <td><strong>{{ gene.symbol }}</strong></td>
+                        <td>{{ gene.name }}</td>
+                        <td class="{% if gene.log2fc > 0 %}qc-pass{% else %}qc-fail{% endif %}">
+                            {{ gene.log2fc|round(2) }}
+                        </td>
+                        <td>{{ gene.padj|round(6) }}</td>
+                        <td>{{ gene.biotype }}</td>
+                        <td class="{% if gene.rescued %}qc-pass{% else %}qc-warn{% endif %}">
+                            {% if gene.rescued %}Rescued{% else %}Not Rescued{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Peak Analysis Results -->
+    {% if analysis_data.peak_analysis %}
+    <div class="section">
+        <h2>⛰️ Peak Analysis Results</h2>
+        
+        <div class="summary-grid">
+            {% for assay in ['sdripseq', 'endseq'] %}
+            {% if analysis_data.peak_analysis[assay] %}
+            <div class="summary-card">
+                <h4>{{ assay|upper }} Peaks</h4>
+                <div class="value">{{ analysis_data.peak_analysis[assay].total_peaks }}</div>
+                <small>FRiP Score: {{ analysis_data.peak_analysis[assay].frip_score }}%</small>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+
+        <div class="plot-container">
+            {% for plot in analysis_data.peak_analysis.plots %}
+            <div>
+                <h4>{{ plot.title }}</h4>
+                <img src="{{ plot.path }}" alt="{{ plot.title }}">
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Variant Analysis -->
+    {% if analysis_data.variant_analysis %}
+    <div class="section">
+        <h2>🧬 Variant Analysis</h2>
+        
+        <div class="summary-grid">
+            <div class="summary-card">
+                <h4>Total Variants</h4>
+                <div class="value">{{ analysis_data.variant_analysis.total_variants }}</div>
+            </div>
+            <div class="summary-card">
+                <h4>High Impact</h4>
+                <div class="value">{{ analysis_data.variant_analysis.high_impact }}</div>
+            </div>
+            <div class="summary-card">
+                <h4>Novel Variants</h4>
+                <div class="value">{{ analysis_data.variant_analysis.novel_variants }}</div>
+            </div>
+        </div>
+
+        {% if analysis_data.variant_analysis.ngs_variants %}
+        <div class="alert alert-warning">
+            <strong>⚠️ ngs Gene Variants:</strong>
+            {{ analysis_data.variant_analysis.ngs_variants|length }} variants detected in ngs gene region.
+            These may affect rescue experiment interpretation.
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Methylation Analysis -->
+    {% if analysis_data.methylation_analysis %}
+    <div class="section">
+        <h2>🔬 DNA Methylation Analysis</h2>
+        
+        <div class="summary-grid">
+            <div class="summary-card">
+                <h4>Global Methylation</h4>
+                <div class="value">{{ analysis_data.methylation_analysis.global_methylation }}%</div>
+            </div>
+            <div class="summary-card">
+                <h4>CpG Coverage</h4>
+                <div class="value">{{ analysis_data.methylation_analysis.cpg_coverage }}%</div>
+            </div>
+            <div class="summary-card">
+                <h4>DMRs Found</h4>
+                <div class="value">{{ analysis_data.methylation_analysis.dmr_count }}</div>
+            </div>
+        </div>
+
+        <div class="plot-container">
+            {% for plot in analysis_data.methylation_analysis.plots %}
+            <div>
+                <h4>{{ plot.title }}</h4>
+                <img src="{{ plot.path }}" alt="{{ plot.title }}">
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Pathway Analysis -->
+    {% if analysis_data.pathway_analysis %}
+    <div class="section">
+        <h2>🛤️ Pathway Enrichment Analysis</h2>
+        
+        <div class="toggle-section" onclick="toggleSection('pathway-table')">
+            <h3>🎯 Enriched Pathways (Click to expand)</h3>
+        </div>
+        <div id="pathway-table" class="collapsible-content">
+            <table class="qc-table">
+                <thead>
+                    <tr>
+                        <th>Pathway</th>
+                        <th>Gene Count</th>
+                        <th>P-value</th>
+                        <th>FDR</th>
+                        <th>Enrichment Score</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pathway in analysis_data.pathway_analysis.pathways %}
+                    <tr>
+                        <td><strong>{{ pathway.name }}</strong></td>
+                        <td>{{ pathway.gene_count }}</td>
+                        <td>{{ pathway.pvalue|round(6) }}</td>
+                        <td>{{ pathway.fdr|round(6) }}</td>
+                        <td class="qc-pass">{{ pathway.enrichment_score|round(2) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="plot-container">
+            {% for plot in analysis_data.pathway_analysis.plots %}
+            <div>
+                <h4>{{ plot.title }}</h4>
+                <img src="{{ plot.path }}" alt="{{ plot.title }}">
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Analysis Metadata -->
+    <div class="section">
+        <h2>⚙️ Analysis Details</h2>
+        
+        <div class="toggle-section" onclick="toggleSection('metadata-table')">
+            <h3>📋 Analysis Parameters (Click to expand)</h3>
+        </div>
+        <div id="metadata-table" class="collapsible-content">
+            <table class="metadata-table">
+                <thead>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for param, value in analysis_data.parameters.items() %}
+                    <tr>
+                        <td>{{ param|replace('_', ' ')|title }}</td>
+                        <td>{{ value }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <h3>🔧 Software Versions</h3>
+        <table class="metadata-table">
+            <thead>
+                <tr>
+                    <th>Tool</th>
+                    <th>Version</th>
+                    <th>Purpose</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tool in analysis_data.software_versions %}
+                <tr>
+                    <td>{{ tool.name }}</td>
+                    <td>{{ tool.version }}</td>
+                    <td>{{ tool.purpose }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Output Files -->
+    <div class="section">
+        <h2>📁 Output Files</h2>
+        
+        <div class="file-list">
+            <h4>📊 Analysis Results</h4>
+            <ul>
+                {% for file in analysis_data.output_files.results %}
+                <li><a href="{{ file.path }}" target="_blank">{{ file.name }}</a> - {{ file.description }}</li>
+                {% endfor %}
+            </ul>
+
+            <h4>📈 Plots and Visualizations</h4>
+            <ul>
+                {% for file in analysis_data.output_files.plots %}
+                <li><a href="{{ file.path }}" target="_blank">{{ file.name }}</a> - {{ file.description }}</li>
+                {% endfor %}
+            </ul>
+
+            <h4>📄 Reports and Logs</h4>
+            <ul>
+                {% for file in analysis_data.output_files.reports %}
+                <li><a href="{{ file.path }}" target="_blank">{{ file.name }}</a> - {{ file.description }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="alert alert-info">
+            <strong>💡 Tip:</strong> All output files are organized in the <code>results/</code> directory. 
+            Use the provided file browser links to navigate and download specific analyses.
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>Generated by ngs Pipeline v{{ analysis_data.pipeline_version }}</p>
+        <p>For questions or support, please refer to the project documentation</p>
+    </div>
+
+    <script>
+        function showAssay(assayName) {
+            // Hide all assay contents
+            const contents = document.querySelectorAll('.assay-content');
+            contents.forEach(content => content.classList.remove('active'));
+            
+            // Remove active class from all tabs
+            const tabs = document.querySelectorAll('.assay-tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            
+            // Show selected assay content
+            document.getElementById(assayName).classList.add('active');
+            
+            // Add active class to clicked tab
+            event.target.classList.add('active');
+        }
+
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            section.classList.toggle('expanded');
+        }
+
+        // Initialize with first assay active
+        document.addEventListener('DOMContentLoaded', function() {
+            const firstTab = document.querySelector('.assay-tab');
+            if (firstTab) {
+                firstTab.classList.add('active');
+            }
+        });
+    </script>
+</body>
+</html>
