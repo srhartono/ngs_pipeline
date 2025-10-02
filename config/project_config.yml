@@ -3,29 +3,30 @@
 # Flexible comparison specification for multi-condition experiments
 
 project:
-  name: "project1"
-  description: "Example NGS project with multiple treatments and controls"
+  name: "Deana_SF3B1_sDRIPEURNA"
+  description: "NGS project with multiple treatments and controls"
   author: "srhartono@ucdavis.edu"
   date: "2025-09-29"
 
 # Data organization
 paths:
-  data_dir: "data/project1"
-  results_dir: "results/project1"
-  notebooks_dir: "notebooks/project1"
+  data_dir: "data/Deana_SF3B1_sDRIPEURNA"
+  results_dir: "results/Deana_SF3B1_sDRIPEURNA"
+  notebooks_dir: "notebooks/Deana_SF3B1_sDRIPEURNA"
   references_dir: "references"
 
 # Sample information
 samples:
   treatments:
-    - "Treat1"
-    - "Treat2"
+    - "SF3B102h"
+    - "SF3B104h"
   controls:
-    - "Control1"
-    - "Control2"
+    - "DMSO04h"
+    - "SF3B100h"
   batches:
-    - "batch1"
-    - "batch2"
+    - "240723"
+    - "250717"
+    - "250929"
   replicates: [1, 2]
   
 # Assay types supported
@@ -40,44 +41,43 @@ assays:
 comparisons:
   # Primary treatment vs control comparisons
   primary:
+    - name: "Treat1_vs_Control"
+      case: "Treat1"
+      control: "Control"
+      description: "Treatment 1 vs Control (all batches combined)"
+      batch_effect: "include"
+
+    - name: "Treat2_vs_Control"
+      case: "Treat2"
+      control: "Control"
+      description: "Treatment 2 vs Control (all batches combined)"
+      batch_effect: "include"
+
     - name: "Treat1_vs_Control1"
       case: "Treat1"
       control: "Control1"
       description: "Treatment 1 vs Control 1 (all batches combined)"
       batch_effect: "include"  # include, exclude, or batch_specific
       
+    - name: "Treat2_vs_Control1"
+      case: "Treat2"
+      control: "Control1"
+      description: "Treatment 2 vs Control 1 (all batches combined)"
+      batch_effect: "include"
+
+    - name: "Treat1_vs_Control2"
+      case: "Treat1"
+      control: "Control2"
+      description: "Treatment 1 vs Control 2 (all batches combined)"
+      batch_effect: "include"
+
     - name: "Treat2_vs_Control2"
       case: "Treat2"
       control: "Control2"
       description: "Treatment 2 vs Control 2 (all batches combined)"
       batch_effect: "include"
-      
-  # Batch-specific comparisons
-  batch_specific:
-    - name: "Treat1_vs_Control1_batch1"
-      case: "Treat1"
-      control: "Control1"
-      batch: "batch1"
-      description: "Treatment 1 vs Control 1 in batch 1 only"
-      
-    - name: "Treat1_vs_Control1_batch2"
-      case: "Treat1"
-      control: "Control1"
-      batch: "batch2"
-      description: "Treatment 1 vs Control 1 in batch 2 only"
-      
-    - name: "AllTreat_batch1_vs_AllControl_batch1"
-      case: ["Treat1", "Treat2"]
-      control: ["Control1", "Control2"]
-      batch: "batch1"
-      description: "All treatments vs all controls in batch 1"
-      
-    - name: "AllTreat_batch2_vs_AllControl_batch2"
-      case: ["Treat1", "Treat2"]
-      control: ["Control1", "Control2"]
-      batch: "batch2"
-      description: "All treatments vs all controls in batch 2"
-      
+
+
   # Cross-treatment comparisons
   cross_treatment:
     - name: "Treat1_vs_Treat2"
