@@ -13,7 +13,7 @@ paths:
   data_dir: "data/Deana_SF3B1_sDRIPEURNA"
   results_dir: "results/Deana_SF3B1_sDRIPEURNA"
   notebooks_dir: "notebooks/Deana_SF3B1_sDRIPEURNA"
-  references_dir: "references"
+  references_dir: "references/Deana_SF3B1_sDRIPEURNA"
 
 # Sample information
 samples:
